@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -23,6 +24,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+static struct list block_list;
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
@@ -92,7 +94,8 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-
+  list_init (&block_list);
+      
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -117,13 +120,34 @@ thread_start (void)
   sema_down (&idle_started);
 }
 
+/* Sleep current running thread until ticks elapsed.*/
+void
+thread_sleep (int64_t ticks) {
+  struct list_elem *e;
+  struct thread *cur = thread_current();
+  int64_t target_tick;
+  
+  target_tick = timer_ticks() + ticks;
+  cur->wakeup_tick = target_tick;
+  for (e = list_begin (&block_list); e != list_end (&block_list); e = list_next(e))
+  {
+    struct thread *temp = list_entry (e, struct thread, elem);
+    int64_t temp_tick = temp->wakeup_tick;
+    if (target_tick < temp_tick)
+      break;
+  }
+  list_insert(e, &cur->elem);
+  thread_block();
+}
+
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
-
+  struct list_elem *e;
+    
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
@@ -134,6 +158,19 @@ thread_tick (void)
   else
     kernel_ticks++;
 
+  /* Check if there exists a thread to wake up in the block list.*/
+  for (e = list_begin (&block_list); e != list_end (&block_list); )
+  {
+    struct thread *t = list_entry (e, struct thread, elem);
+    int64_t target_tick = t->wakeup_tick;
+    if (target_tick <= timer_ticks()) 
+    {
+      e = list_remove(e);  
+      thread_unblock(t);
+    }
+    else break;
+  }
+    
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
@@ -171,6 +208,7 @@ thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
   tid_t tid;
+  enum intr_level old_level;
 
   ASSERT (function != NULL);
 
@@ -182,6 +220,11 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+
+  /* Prepare thread for first run by initializing its stack.
+     Do this atomically so intermediate values for the 'stack' 
+     member cannot be observed. */
+  old_level = intr_disable ();
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -197,6 +240,8 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
+
+  intr_set_level (old_level);
 
   /* Add to run queue. */
   thread_unblock (t);
