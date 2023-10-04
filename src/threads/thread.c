@@ -208,7 +208,6 @@ thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
   tid_t tid;
-  enum intr_level old_level;
 
   ASSERT (function != NULL);
 
@@ -220,11 +219,6 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-
-  /* Prepare thread for first run by initializing its stack.
-     Do this atomically so intermediate values for the 'stack' 
-     member cannot be observed. */
-  old_level = intr_disable ();
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -241,10 +235,12 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  intr_set_level (old_level);
-
   /* Add to run queue. */
   thread_unblock (t);
+
+  /* If priority of created thread is higher than running thread, preempt. */
+  if (thread_current()->priority < priority)
+    thread_yield();
 
   return tid;
 }
@@ -276,13 +272,21 @@ thread_block (void)
 void
 thread_unblock (struct thread *t) 
 {
+  struct list_elem *e;
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  for (e = list_begin(&ready_list); e != list_end (&ready_list); e = list_next(e))
+  {
+    struct thread *temp = list_entry (e, struct thread, elem);
+    if (temp->priority < t->priority)
+      break;
+  }
+  list_insert(e, &t->elem);
+  //list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -507,6 +511,9 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->own_priority = priority;
+  list_init(&t->donated_threads);
+  lock_init(&t->priority_lock);
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
