@@ -350,6 +350,7 @@ thread_exit (void)
 void
 thread_yield (void) 
 {
+  struct list_elem *e;
   struct thread *cur = thread_current ();
   enum intr_level old_level;
   
@@ -357,7 +358,16 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+  {
+    for (e = list_begin(&ready_list); e != list_end (&ready_list); e = list_next(e))
+    {
+      struct thread *temp = list_entry (e, struct thread, elem);
+      if (temp->priority < cur->priority)
+        break;
+    }
+    list_insert(e, &cur->elem);
+    //list_push_back (&ready_list, &cur->elem);
+  }
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -385,6 +395,12 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  if (!list_empty(&ready_list))
+  {
+    struct thread *front_thread = list_entry(list_front(&ready_list), struct thread, elem);
+    if (new_priority < front_thread->priority)
+      thread_yield();
+  }
 }
 
 /* Returns the current thread's priority. */
