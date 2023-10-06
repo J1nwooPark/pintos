@@ -302,6 +302,7 @@ void
 cond_wait (struct condition *cond, struct lock *lock) 
 {
   struct semaphore_elem waiter;
+  struct list_elem *e;
 
   ASSERT (cond != NULL);
   ASSERT (lock != NULL);
@@ -309,7 +310,16 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   
   sema_init (&waiter.semaphore, 0);
-  list_push_back (&cond->waiters, &waiter.elem);
+  for (e = list_begin(&cond->waiters); e != list_end (&cond->waiters); e = list_next(e))
+  {
+    struct semaphore_elem *temp_semaphore = list_entry (e, struct semaphore_elem, elem);
+    struct list_elem *semaphore_waiter = list_begin(&temp_semaphore->semaphore.waiters);
+    struct thread *temp_thread = list_entry(semaphore_waiter, struct thread, elem);
+    if (temp_thread->priority < thread_current()->priority)
+      break;
+  }
+  list_insert(e, &waiter.elem);
+  //list_push_back (&cond->waiters, &waiter.elem);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
