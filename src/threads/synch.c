@@ -267,7 +267,7 @@ lock_release (struct lock *lock)
   {
     struct thread *temp = list_entry (e, struct thread, priority_elem);
     if (temp->waiting_lock == lock)
-      e = list_remove(&temp->priority_elem);
+      e = list_remove(e);
     else
       e = list_next(e);
   }
