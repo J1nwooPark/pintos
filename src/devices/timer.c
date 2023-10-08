@@ -131,7 +131,7 @@ timer_nsleep (int64_t ns)
    Busy waiting wastes CPU cycles, and busy waiting with
    interrupts off for the interval between timer ticks or longer
    will cause timer ticks to be lost.  Thus, use timer_msleep()
-   instead if interrupts are enabled. */
+   instead if interrupts are enabledd. */
 void
 timer_mdelay (int64_t ms) 
 {
