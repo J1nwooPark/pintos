@@ -208,7 +208,6 @@ thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
   tid_t tid;
-  enum intr_level old_level;
 
   ASSERT (function != NULL);
 
@@ -220,11 +219,6 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-
-  /* Prepare thread for first run by initializing its stack.
-     Do this atomically so intermediate values for the 'stack' 
-     member cannot be observed. */
-  old_level = intr_disable ();
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -241,10 +235,12 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-  intr_set_level (old_level);
-
   /* Add to run queue. */
   thread_unblock (t);
+
+  /* If priority of created thread is higher than running thread, preempt. */
+  if (thread_current()->priority < priority)
+    thread_yield();
 
   return tid;
 }
@@ -276,6 +272,7 @@ thread_block (void)
 void
 thread_unblock (struct thread *t) 
 {
+  struct list_elem *e;
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
@@ -346,6 +343,7 @@ thread_exit (void)
 void
 thread_yield (void) 
 {
+  struct list_elem *e;
   struct thread *cur = thread_current ();
   enum intr_level old_level;
   
@@ -380,7 +378,33 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  int max_priority = -1;
+  struct list_elem *e;
+  struct thread *cur = thread_current();
+  cur->priority = new_priority;
+  cur->own_priority = new_priority;
+  
+  if (!list_empty(&cur->donated_threads))
+  {
+    for (e = list_begin(&cur->donated_threads); e != list_end(&cur->donated_threads); e = list_next(e))
+    {
+      struct thread *temp = list_entry (e, struct thread, priority_elem);
+      if (temp->priority > cur->priority)
+        cur->priority = temp->priority;
+    }
+  }
+  
+  if (!list_empty(&ready_list))
+  {
+    for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e))
+    {
+      struct thread *temp = list_entry (e, struct thread, elem);
+      if (temp->priority > max_priority)
+        max_priority = temp->priority;
+    }
+    if (cur->priority < max_priority)
+      thread_yield();
+  }
 }
 
 /* Returns the current thread's priority. */
@@ -388,6 +412,16 @@ int
 thread_get_priority (void) 
 {
   return thread_current ()->priority;
+}
+
+/* Donate FROM's priority to TO's priority. */
+void
+thread_donate_priority (struct thread *from, struct thread *to)
+{
+  if (to->priority < from->priority) 
+    to->priority = from->priority;
+  if (to->waiting_lock != NULL)
+    thread_donate_priority(to, to->waiting_lock->holder);
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -507,6 +541,9 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->own_priority = priority;
+  list_init(&t->donated_threads);
+  t->waiting_lock = NULL;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -535,10 +572,26 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
+  struct list_elem *e, *target;
+  struct thread *next_thread = NULL;
+  int max_priority = - 1;
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  {
+    for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e))
+    {
+      struct thread *temp = list_entry (e, struct thread, elem);
+      if (temp->priority > max_priority)
+      {
+        target = e;
+        next_thread = temp;
+        max_priority = temp->priority;
+      }
+    }   
+    list_remove(target);
+    return next_thread;
+  }
 }
 
 /* Completes a thread switch by activating the new thread's page
