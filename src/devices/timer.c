@@ -30,6 +30,8 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
+static struct list all_list;
+
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -177,42 +179,25 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
-  
+  struct list_elem *e;
+
   if (thread_mlfqs)
   {
     mlfqs_inc_recent_cpu();
-    if (timer_ticks() )
-        if (timer_ticks() % 100 == 0)
-          /* priority, recent_cpu, load_avg */
-          void mlfqs_recalc_recent_cpu(void) {
-    for (struct list_elem *tmp = list_begin(&all_list); tmp != list_end(&all_list); tmp = list_next(tmp)) {
-        mlfqs_recent_cpu(list_entry(tmp, struct thread, allelem));
-    }
-}
-
-void mlfqs_recalc_priority(void) {
-    for (struct list_elem *tmp = list_begin(&all_list); tmp != list_end(&all_list); tmp = list_next(tmp)) {
-        mlfqs_priority(list_entry(tmp, struct thread, allelem));
-    }
-
-
-        if (timer_ticks() % 4 == 0) {
-            mlfqs_load_avg();
-            mlfqs_recalc_recent_cpu();
-        }
-
-//////////////////////
-
-
-    if (ticks ==100)
+    if (timer_ticks() % 100 == 0)
     {
-      mlfqs_inc_recent_cpu ();
-      mlfqs_inc_recent_cpu ();
-      mlfqs_inc_recent_cpu ();
+      /* priority, recent_cpu, load_avg */
+      mlfqs_load_avg();  
+      for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) 
+      {
+          mlfqs_recent_cpu(list_entry(e, struct thread, allelem));
+      }  
     }
-    if (ticks ==4)
-    {
-      mlfqs_priority ();
+
+    if (timer_ticks() % 4 == 0) {
+      for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(tmp)) {
+          mlfqs_priority(list_entry(tmp, struct thread, allelem));
+      }
     }
   }
 }
