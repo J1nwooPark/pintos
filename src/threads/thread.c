@@ -434,9 +434,14 @@ void
 thread_set_nice (int nice UNUSED) 
 {
   enum intr_level old_level = intr_disable ();
-  
+  struct thread *temp;
+
   thread_current()->nice = nice;
   mlfqs_priority (thread_current());
+
+  temp = list_entry (list_front (&ready_list), struct thread, elem);
+  if (thread_current()->priority < temp -> priority)
+    thread_yield();
   
   intr_set_level (old_level);
   return;
@@ -462,7 +467,7 @@ thread_get_load_avg (void)
   int result;
   enum intr_level old_level = intr_disable ();
   
-  result = fp_round_to_zero(mult_int(load_avg, 100));
+  result = fp_round_to_nearest(mult_int(load_avg, 100));
 
   intr_set_level (old_level);
   return result;
@@ -475,7 +480,7 @@ thread_get_recent_cpu (void)
   int result;
   enum intr_level old_level = intr_disable ();
   
-  result = fp_round_to_zero(mult_int(thread_current()->recent_cpu, 100));
+  result = fp_round_to_nearest(mult_int(thread_current()->recent_cpu, 100));
 
   intr_set_level (old_level);
   return result;
@@ -483,7 +488,8 @@ thread_get_recent_cpu (void)
 
 
 /*PRI_MAX - (recent_cpu / 4) - (nice * 2)*/
-void mlfqs_priority (struct thread *t)
+void 
+mlfqs_priority (struct thread *t)
 {
   if (t != idle_thread)
   {
@@ -510,9 +516,6 @@ mlfqs_recent_cpu (struct thread *t)
     int b = add_int (a,1);
     int result = add_int(mult(div(a,b), t->recent_cpu), t->nice);
 
-    if ((result >> 31) == (-1) >> 31)
-            result = 0; 
-
     t->recent_cpu = result;
     return;
   }
@@ -522,13 +525,14 @@ mlfqs_recent_cpu (struct thread *t)
 void
 mlfqs_load_avg (void)
 {
+  int ready_threads;
   int a = mult(div(int_to_fixed(59),int_to_fixed(60)), load_avg);
 
-  int ready_threads = (int)list_size(&ready_list);
+  ready_threads = list_size(&ready_list);
   if (thread_current() == idle_thread)
     ready_threads += 1;
  
-  int b = mult(div(int_to_fixed(1),int_to_fixed(60)), ready_threads);
+  int b = mult_int(div(int_to_fixed(1),int_to_fixed(60)), ready_threads);
   load_avg = add(a, b);
 }
 
