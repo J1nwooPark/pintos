@@ -177,6 +177,44 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+  
+  if (thread_mlfqs)
+  {
+    mlfqs_inc_recent_cpu();
+    if (timer_ticks() )
+        if (timer_ticks() % 100 == 0)
+          /* priority, recent_cpu, load_avg */
+          void mlfqs_recalc_recent_cpu(void) {
+    for (struct list_elem *tmp = list_begin(&all_list); tmp != list_end(&all_list); tmp = list_next(tmp)) {
+        mlfqs_recent_cpu(list_entry(tmp, struct thread, allelem));
+    }
+}
+
+void mlfqs_recalc_priority(void) {
+    for (struct list_elem *tmp = list_begin(&all_list); tmp != list_end(&all_list); tmp = list_next(tmp)) {
+        mlfqs_priority(list_entry(tmp, struct thread, allelem));
+    }
+
+
+        if (timer_ticks() % 4 == 0) {
+            mlfqs_load_avg();
+            mlfqs_recalc_recent_cpu();
+        }
+
+//////////////////////
+
+
+    if (ticks ==100)
+    {
+      mlfqs_inc_recent_cpu ();
+      mlfqs_inc_recent_cpu ();
+      mlfqs_inc_recent_cpu ();
+    }
+    if (ticks ==4)
+    {
+      mlfqs_priority ();
+    }
+  }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
