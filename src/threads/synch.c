@@ -61,8 +61,6 @@ void
 sema_down (struct semaphore *sema) 
 {
   enum intr_level old_level;
-  struct thread *cur = thread_current ();
-  struct list_elem *e;
 
   ASSERT (sema != NULL);
   ASSERT (!intr_context ());
@@ -112,7 +110,7 @@ sema_up (struct semaphore *sema)
 {
   int max_priority = -1;
   enum intr_level old_level;
-  struct list_elem *e, *target;
+  struct list_elem *e, *target = NULL;
   struct thread *unblocked_thread = NULL;
 
   ASSERT (sema != NULL);
