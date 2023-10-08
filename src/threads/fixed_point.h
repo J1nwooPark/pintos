@@ -2,6 +2,17 @@
 #define INT_MAX ((1<<31) - 1) 
 #define INT_MIN (-(1<<31)) 
 
+int int_to_fixed(int);
+int fp_round_to_zero(int x);
+int fp_round_to_nearest(int x);
+int add(int x, int y);
+int sub(int x, int y);
+int add_int(int x, int n);
+int sub_int(int x, int n);
+int mult(int x, int y);
+int mult_int(int x, int n);
+int div(int x, int y);
+int div_int(int x, int n);
 
 int int_to_fixed(int n)
 {
