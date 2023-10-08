@@ -90,6 +90,8 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     int own_priority;                   /* Save own priority when donated. */
+    int recent_cpu;                     /* RECENT_CPU value of this thread for mlfqs. */
+    int nice;                           /* NICE value of this thread for mlfqs. */
     struct list donated_threads;        /* List of donated threads. */
     struct lock *waiting_lock;           /* Lock this thread is waiting for. */
     int64_t wakeup_tick;                /* Tick to wake up when blocked.*/

@@ -61,6 +61,8 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+int load_avg;
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -95,7 +97,8 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
   list_init (&block_list);
-      
+  load_avg = 0;
+
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -540,6 +543,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->own_priority = priority;
+  t->recent_cpu = 0;
+  t->nice = 0;
   list_init(&t->donated_threads);
   t->waiting_lock = NULL;
   t->magic = THREAD_MAGIC;
