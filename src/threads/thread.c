@@ -272,7 +272,6 @@ thread_block (void)
 void
 thread_unblock (struct thread *t) 
 {
-  struct list_elem *e;
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
@@ -343,7 +342,6 @@ thread_exit (void)
 void
 thread_yield (void) 
 {
-  struct list_elem *e;
   struct thread *cur = thread_current ();
   enum intr_level old_level;
   
@@ -572,7 +570,7 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-  struct list_elem *e, *target;
+  struct list_elem *e, *target = NULL;
   struct thread *next_thread = NULL;
   int max_priority = - 1;
   if (list_empty (&ready_list))
