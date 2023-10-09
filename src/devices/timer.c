@@ -34,8 +34,6 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-static struct list all_list;
-
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -192,16 +190,12 @@ timer_interrupt (struct intr_frame *args UNUSED)
     {
       /* priority <= recent_cpu <= load_avg */
       mlfqs_load_avg();  // 1
-      for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) 
-      {
-          mlfqs_recent_cpu(list_entry(e, struct thread, allelem));  //2
-      }  
+      mlfqs_all_recent_cpu() ;
     }
 
-    if (timer_ticks() % 4 == 0) {
-      for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
-          mlfqs_priority(list_entry(e, struct thread, allelem));    //3
-      }
+    if (timer_ticks() % 4 == 0) 
+    {
+      mlfqs_all_priority ();
     }
   }
 }
