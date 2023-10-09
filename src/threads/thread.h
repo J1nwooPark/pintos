@@ -92,6 +92,7 @@ struct thread
     int own_priority;                   /* Save own priority when donated. */
     int recent_cpu;                     /* RECENT_CPU value of this thread for mlfqs. */
     int nice;                           /* NICE value of this thread for mlfqs. */
+
     struct list donated_threads;        /* List of donated threads. */
     struct lock *waiting_lock;           /* Lock this thread is waiting for. */
     int64_t wakeup_tick;                /* Tick to wake up when blocked.*/
@@ -148,4 +149,8 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+void mlfqs_priority (struct thread *);
+void mlfqs_recent_cpu (struct thread *);
+void mlfqs_load_avg (void);
+void mlfqs_inc_recent_cpu (void);
 #endif /* threads/thread.h */

@@ -3,16 +3,16 @@
 #define INT_MIN (-(1<<31)) 
 
 int int_to_fixed(int);
-int fp_round_to_zero(int x);
-int fp_round_to_nearest(int x);
-int add(int x, int y);
-int sub(int x, int y);
-int add_int(int x, int n);
-int sub_int(int x, int n);
-int mult(int x, int y);
-int mult_int(int x, int n);
-int div(int x, int y);
-int div_int(int x, int n);
+int fp_round_to_zero(int);
+int fp_round_to_nearest(int);
+int add(int, int);
+int sub(int, int);
+int add_int(int, int);
+int sub_int(int, int);
+int mult(int, int);
+int mult_int(int, int);
+int div(int, int);
+int div_int(int, int);
 
 int int_to_fixed(int n)
 {

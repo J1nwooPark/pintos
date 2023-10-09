@@ -22,11 +22,7 @@ static int64_t ticks;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
-static unsigned loops_per_tick;Here are the components that should be included in your final report:
-
-1. Solution: Detailed explanation of how you implemented the requirements, including specific algorithms and data structures.
-
-2. Discussion: Compare what you planned in the design report with how you actually implemented, and why such changes are necessary. Describe any challenges faced during implementation and how you resolved them.ㅛ
+static unsigned loops_per_tick;
 
 static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
@@ -181,23 +177,6 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
-  struct list_elem *e;
-
-  if (thread_mlfqs)
-  {
-    mlfqs_inc_recent_cpu();
-    if (timer_ticks() % 100 == 0)
-    {
-      /* priority <= recent_cpu <= load_avg */
-      mlfqs_load_avg();  // 1
-      mlfqs_all_recent_cpu() ;
-    }
-
-    if (timer_ticks() % 4 == 0) 
-    {
-      mlfqs_all_priority ();
-    }
-  }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
