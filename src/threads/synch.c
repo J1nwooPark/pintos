@@ -370,7 +370,6 @@ cond_wait (struct condition *cond, struct lock *lock)
       break;
   }
   list_insert(e, &waiter.elem);
-  //list_push_back (&cond->waiters, &waiter.elem);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);

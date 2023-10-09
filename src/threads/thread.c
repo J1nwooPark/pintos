@@ -451,7 +451,7 @@ thread_donate_priority (struct thread *from, struct thread *to)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
   enum intr_level old_level = intr_disable ();
   
