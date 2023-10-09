@@ -380,14 +380,14 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  int max_priority = -1;
+  struct list_elem *e;
+  struct thread *cur = thread_current();
+  cur->priority = new_priority;
+  cur->own_priority = new_priority;
+  
   if (thread_mlfqs == 0)
-    {
-    int max_priority = -1;
-    struct list_elem *e;
-    struct thread *cur = thread_current();
-    cur->priority = new_priority;
-    cur->own_priority = new_priority;
-    
+  {
     if (!list_empty(&cur->donated_threads))
     {
       for (e = list_begin(&cur->donated_threads); e != list_end(&cur->donated_threads); e = list_next(e))
@@ -397,18 +397,18 @@ thread_set_priority (int new_priority)
           cur->priority = temp->priority;
       }
     }
+  }
     
-    if (!list_empty(&ready_list))
+  if (!list_empty(&ready_list))
+  {
+    for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e))
     {
-      for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e))
-      {
-        struct thread *temp = list_entry (e, struct thread, elem);
-        if (temp->priority > max_priority)
-          max_priority = temp->priority;
-      }
-      if (cur->priority < max_priority)
-        thread_yield();
+      struct thread *temp = list_entry (e, struct thread, elem);
+      if (temp->priority > max_priority)
+        max_priority = temp->priority;
     }
+    if (cur->priority < max_priority)
+      thread_yield();
   }
 }
 
@@ -434,9 +434,12 @@ void
 thread_set_nice (int nice UNUSED) 
 {
   enum intr_level old_level = intr_disable ();
-  
+  struct thread *temp;
+
   thread_current()->nice = nice;
-  mlfqs_priority (thread_current());
+  int new_priority = mlfqs_priority (thread_current());
+
+  thread_set_priority(new_priority);
   
   intr_set_level (old_level);
   return;
@@ -462,7 +465,7 @@ thread_get_load_avg (void)
   int result;
   enum intr_level old_level = intr_disable ();
   
-  result = fp_round_to_zero(mult_int(load_avg, 100));
+  result = fp_round_to_nearest(mult_int(load_avg, 100));
 
   intr_set_level (old_level);
   return result;
@@ -475,7 +478,7 @@ thread_get_recent_cpu (void)
   int result;
   enum intr_level old_level = intr_disable ();
   
-  result = fp_round_to_zero(mult_int(thread_current()->recent_cpu, 100));
+  result = fp_round_to_nearest(mult_int(thread_current()->recent_cpu, 100));
 
   intr_set_level (old_level);
   return result;
@@ -483,7 +486,8 @@ thread_get_recent_cpu (void)
 
 
 /*PRI_MAX - (recent_cpu / 4) - (nice * 2)*/
-void mlfqs_priority (struct thread *t)
+int
+mlfqs_priority (struct thread *t)
 {
   if (t != idle_thread)
   {
@@ -496,7 +500,7 @@ void mlfqs_priority (struct thread *t)
       result = PRI_MAX;
     
     t->priority = result;
-    return;
+    return result;
   }
 }
 
@@ -510,9 +514,6 @@ mlfqs_recent_cpu (struct thread *t)
     int b = add_int (a,1);
     int result = add_int(mult(div(a,b), t->recent_cpu), t->nice);
 
-    if ((result >> 31) == (-1) >> 31)
-            result = 0; 
-
     t->recent_cpu = result;
     return;
   }
@@ -522,13 +523,14 @@ mlfqs_recent_cpu (struct thread *t)
 void
 mlfqs_load_avg (void)
 {
+  int ready_threads;
   int a = mult(div(int_to_fixed(59),int_to_fixed(60)), load_avg);
 
-  int ready_threads = (int)list_size(&ready_list);
+  ready_threads = list_size(&ready_list);
   if (thread_current() == idle_thread)
     ready_threads += 1;
  
-  int b = mult(div(int_to_fixed(1),int_to_fixed(60)), ready_threads);
+  int b = mult_int(div(int_to_fixed(1),int_to_fixed(60)), ready_threads);
   load_avg = add(a, b);
 }
 
@@ -543,7 +545,26 @@ mlfqs_inc_recent_cpu (void)
   }
 }
 
+void
+mlfqs_all_recent_cpu (void)
+{
+  struct list_elem *e;
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) 
+  {
+      mlfqs_recent_cpu(list_entry(e, struct thread, allelem));
+  }  
+}
 
+void
+mlfqs_all_priority(void)
+{
+  struct list_elem *e;
+  int tmp;
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) 
+  {
+    tmp = mlfqs_priority(list_entry(e, struct thread, allelem));    
+  }
+}
 
 /* Idle thread.  Executes when no other thread is ready to run.
 
