@@ -11,7 +11,6 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -24,7 +23,6 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
-static struct list block_list;
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
@@ -94,8 +92,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-  list_init (&block_list);
-      
+
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -120,34 +117,13 @@ thread_start (void)
   sema_down (&idle_started);
 }
 
-/* Sleep current running thread until ticks elapsed.*/
-void
-thread_sleep (int64_t ticks) {
-  struct list_elem *e;
-  struct thread *cur = thread_current();
-  int64_t target_tick;
-  
-  target_tick = timer_ticks() + ticks;
-  cur->wakeup_tick = target_tick;
-  for (e = list_begin (&block_list); e != list_end (&block_list); e = list_next(e))
-  {
-    struct thread *temp = list_entry (e, struct thread, elem);
-    int64_t temp_tick = temp->wakeup_tick;
-    if (target_tick < temp_tick)
-      break;
-  }
-  list_insert(e, &cur->elem);
-  thread_block();
-}
-
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
-  struct list_elem *e;
-    
+
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
@@ -158,19 +134,6 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  /* Check if there exists a thread to wake up in the block list.*/
-  for (e = list_begin (&block_list); e != list_end (&block_list); )
-  {
-    struct thread *t = list_entry (e, struct thread, elem);
-    int64_t target_tick = t->wakeup_tick;
-    if (target_tick <= timer_ticks()) 
-    {
-      e = list_remove(e);  
-      thread_unblock(t);
-    }
-    else break;
-  }
-    
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
@@ -237,10 +200,6 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
-  /* If priority of created thread is higher than running thread, preempt. */
-  if (thread_current()->priority < priority)
-    thread_yield();
 
   return tid;
 }
@@ -376,33 +335,7 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  int max_priority = -1;
-  struct list_elem *e;
-  struct thread *cur = thread_current();
-  cur->priority = new_priority;
-  cur->own_priority = new_priority;
-  
-  if (!list_empty(&cur->donated_threads))
-  {
-    for (e = list_begin(&cur->donated_threads); e != list_end(&cur->donated_threads); e = list_next(e))
-    {
-      struct thread *temp = list_entry (e, struct thread, priority_elem);
-      if (temp->priority > cur->priority)
-        cur->priority = temp->priority;
-    }
-  }
-  
-  if (!list_empty(&ready_list))
-  {
-    for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e))
-    {
-      struct thread *temp = list_entry (e, struct thread, elem);
-      if (temp->priority > max_priority)
-        max_priority = temp->priority;
-    }
-    if (cur->priority < max_priority)
-      thread_yield();
-  }
+  thread_current ()->priority = new_priority;
 }
 
 /* Returns the current thread's priority. */
@@ -410,16 +343,6 @@ int
 thread_get_priority (void) 
 {
   return thread_current ()->priority;
-}
-
-/* Donate FROM's priority to TO's priority. */
-void
-thread_donate_priority (struct thread *from, struct thread *to)
-{
-  if (to->priority < from->priority) 
-    to->priority = from->priority;
-  if (to->waiting_lock != NULL)
-    thread_donate_priority(to, to->waiting_lock->holder);
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -539,9 +462,6 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  t->own_priority = priority;
-  list_init(&t->donated_threads);
-  t->waiting_lock = NULL;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -570,26 +490,10 @@ alloc_frame (struct thread *t, size_t size)
 static struct thread *
 next_thread_to_run (void) 
 {
-  struct list_elem *e, *target = NULL;
-  struct thread *next_thread = NULL;
-  int max_priority = - 1;
   if (list_empty (&ready_list))
     return idle_thread;
   else
-  {
-    for (e = list_begin(&ready_list); e != list_end(&ready_list); e = list_next(e))
-    {
-      struct thread *temp = list_entry (e, struct thread, elem);
-      if (temp->priority > max_priority)
-      {
-        target = e;
-        next_thread = temp;
-        max_priority = temp->priority;
-      }
-    }   
-    list_remove(target);
-    return next_thread;
-  }
+    return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page
