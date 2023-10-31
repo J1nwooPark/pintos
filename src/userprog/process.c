@@ -14,6 +14,7 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
@@ -28,18 +29,23 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-  char *fn_copy;
+  char *fn_copy, *fn_copy2, *name_ptr, *save_ptr;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
+  fn_copy2 = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-
+  strlcpy (fn_copy2, file_name, PGSIZE);
+  name_ptr = strtok_r(fn_copy2, " ", &save_ptr);
+  
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (name_ptr, PRI_DEFAULT, start_process, fn_copy);
+  palloc_free_page (fn_copy2);
+
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -50,16 +56,63 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
-  char *file_name = file_name_;
+  char *file_name = file_name_, *name_ptr, *save_ptr;
   struct intr_frame if_;
   bool success;
+  char **argv = (char**)malloc (sizeof(char*) * 128);
+  int i, argc = 0, total_len = 0;
+  void **esp;
+
+  name_ptr = strtok_r(file_name, " ", &save_ptr);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (name_ptr, &if_.eip, &if_.esp);
+  
+  /* Parse arguments and save them in argv. */
+  while (name_ptr = strtok_r(NULL, " ", &save_ptr))
+    argv[argc++] = name_ptr;
+         
+  /* Push argv words in stack. */
+  esp = &if_.esp;
+  for (i = argc - 1; argc >= 0; argc--)
+  {
+    int len = strlen(argv[i]);
+    total_len += (len + 1);
+    *esp -= len;
+    strlcpy(*esp, argv[i], len);
+    argv[i] = *esp;
+  }
+
+  /* Push word_align byte if total length is not divisible by 4. */
+  if (total_len % 4)
+  {
+    int align = 4 - (total_len % 4);
+    *esp -= align;
+  }
+    
+  /* Push null pointer, ensuring argv[argc] is a null pointer. */
+  *esp -= 4;
+      
+  /* Push argv pointers and argv. */
+  for (i = argc - 1; argc >= 0; argc--)
+  {
+    *esp -= 4;
+    *(char **)*esp = argv[i];
+  }
+  *esp -= 4;
+  *(char **)*esp = *esp + 4;
+
+  /* Push argc. */
+  *esp -= 4;
+  *(int *)*esp = argc;
+
+  /* Push return address and free argv. */
+  *esp -= 4;       
+  free(argv);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
