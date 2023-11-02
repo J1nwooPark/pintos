@@ -1,4 +1,5 @@
 #include "userprog/syscall.h"
+#include "userprog/pagedir.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -6,9 +7,19 @@
 #include "threads/vaddr.h"
 #include "filesys/file.h"
 #include "filesys/inode.h"
+#include "devices/shutdown.h"
 
 static void syscall_handler (struct intr_frame *);
 
+void
+check_address(void *esp)
+{
+  uint32_t *pagedir = thread_current()->pagedir;
+  if (esp < (void *)0x08048000 || PHYS_BASE < esp)
+    exit(-1);
+  if (pagedir_get_page(pagedir, esp) == NULL)
+    exit(-1);
+}
 void
 syscall_init (void) 
 {
@@ -19,7 +30,7 @@ static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   void *esp = f->esp;
-  if (!is_user_vaddr(esp)) exit(-1);
+  check_address(esp);
   int syscall_num = *(int *)esp, ret;
 
   switch (syscall_num) {
@@ -27,7 +38,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       halt();
       break;
     case SYS_EXIT:
-      if (!is_user_vaddr(esp + 4)) exit(-1);
+      check_address(esp + 4);
       exit(*(int *)(esp + 4));
       break;
     case SYS_EXEC:
@@ -45,8 +56,8 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_READ:
       break;
     case SYS_WRITE:
-      if (!is_user_vaddr(esp + 12)) exit(-1);
-      if (!is_user_vaddr(*(void **)(esp + 8))) exit(-1);
+      check_address(esp + 12);
+      check_address(*(void **)(esp + 8));
       ret = write(*(int *)(esp + 4), *(void **)(esp + 8), *(unsigned *)(esp + 12));
       f->eax = ret;
       break;
@@ -63,7 +74,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 void 
 halt (void)
 {
-
+  shutdown_power_off();
 }
 
 void 
