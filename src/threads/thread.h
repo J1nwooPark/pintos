@@ -4,6 +4,8 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "filesys/file.h"
+#include "filesys/inode.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -92,6 +94,9 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+    
+    /* File descriptors for file system. */
+    struct file* file_descriptor[128];
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
