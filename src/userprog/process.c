@@ -41,7 +41,7 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
   strlcpy (fn_copy2, file_name, PGSIZE);
   name_ptr = strtok_r(fn_copy2, " ", &save_ptr);
-  
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (name_ptr, PRI_DEFAULT, start_process, fn_copy);
   palloc_free_page (fn_copy2);
@@ -63,7 +63,9 @@ start_process (void *file_name_)
   int i, argc = 0, total_len = 0;
   void **esp;
 
+  /* Parse file name and save it in argv. */
   name_ptr = strtok_r(file_name, " ", &save_ptr);
+  argv[argc++] = name_ptr;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -73,17 +75,17 @@ start_process (void *file_name_)
   success = load (name_ptr, &if_.eip, &if_.esp);
   
   /* Parse arguments and save them in argv. */
-  while (name_ptr = strtok_r(NULL, " ", &save_ptr))
+  while ((name_ptr = strtok_r(NULL, " ", &save_ptr)))
     argv[argc++] = name_ptr;
-         
+
   /* Push argv words in stack. */
   esp = &if_.esp;
-  for (i = argc - 1; argc >= 0; argc--)
+  for (i = argc - 1; i >= 0; i--)
   {
     int len = strlen(argv[i]);
     total_len += (len + 1);
-    *esp -= len;
-    strlcpy(*esp, argv[i], len);
+    *esp -= (len + 1);
+    strlcpy(*esp, argv[i], len + 1);
     argv[i] = *esp;
   }
 
@@ -96,9 +98,9 @@ start_process (void *file_name_)
     
   /* Push null pointer, ensuring argv[argc] is a null pointer. */
   *esp -= 4;
-      
+
   /* Push argv pointers and argv. */
-  for (i = argc - 1; argc >= 0; argc--)
+  for (i = argc - 1; i >= 0; i--)
   {
     *esp -= 4;
     *(char **)*esp = argv[i];
@@ -111,7 +113,7 @@ start_process (void *file_name_)
   *(int *)*esp = argc;
 
   /* Push return address and free argv. */
-  *esp -= 4;       
+  *esp -= 4;
   free(argv);
 
   /* If load failed, quit. */
@@ -141,6 +143,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  while(1);
   return -1;
 }
 
