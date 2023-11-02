@@ -4,6 +4,8 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "filesys/file.h"
+#include "filesys/inode.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -18,7 +20,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 {
   void *esp = f->esp;
   if (!is_user_vaddr(esp)) exit(-1);
-  int syscall_num = *(int *)esp;
+  int syscall_num = *(int *)esp, ret;
 
   switch (syscall_num) {
     case SYS_HALT:
@@ -43,6 +45,10 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_READ:
       break;
     case SYS_WRITE:
+      if (!is_user_vaddr(esp + 12)) exit(-1);
+      if (!is_user_vaddr(*(void **)(esp + 8))) exit(-1);
+      ret = write(*(int *)(esp + 4), *(void **)(esp + 8), *(unsigned *)(esp + 12));
+      f->eax = ret;
       break;
     case SYS_SEEK:
       break;
@@ -114,8 +120,14 @@ read (int fd, void *buffer, unsigned length)
 int 
 write (int fd, const void *buffer, unsigned length)
 {
-  
-  return -1;
+  if (fd == 1)
+  {
+    putbuf(buffer, length);
+    return length;
+  }
+  struct thread *t = thread_current();
+  struct file *f = t->file_descriptor[fd];
+  return file_write(f, buffer, length);
 }
 
 void 
