@@ -95,9 +95,10 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     
-    /* File descriptors for file system. */
-    struct file* file_descriptor[128];
-
+    /* File variables for file system. */
+    struct file* file_descriptor[128]; /* File descriptors. */
+    int file_next_idx; /* Next index to insert for a file. */ 
+    
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
