@@ -19,10 +19,7 @@ static void syscall_handler (struct intr_frame *);
 void
 check_address(void *esp)
 {
-  uint32_t *pagedir = thread_current()->pagedir;
-  if (esp < (void *)0x08048000 || PHYS_BASE < esp)
-    exit(-1);
-  if (pagedir_get_page(pagedir, esp) == NULL)
+  if (esp < (void *)0x08048000 || PHYS_BASE <= esp)
     exit(-1);
 }
 void
@@ -154,6 +151,7 @@ exit (int status)
 {
   struct thread *t = thread_current();
   int i;
+
   printf("%s: exit(%d)\n", t->name, status);
   for (i = 2; i < 128; i++)
     close(i);
