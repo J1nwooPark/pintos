@@ -143,8 +143,24 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  while(1);
-  return -1;
+  struct list_elem *e;
+  struct thread *cur = thread_current();
+
+  for (e = list_begin(&cur->childs); e != list_end(&cur->childs); e = list_next(e))
+  {
+      struct thread *temp = list_entry (e, struct thread, elem);
+      if (temp->tid == child_tid)
+      {
+        sema_down(&(temp->child_lock));
+        list_remove(&(temp->child_elem));
+        sema_up(&(temp->memory_lock));
+
+        return temp->exit_status;
+
+        //커널에 의해 종료 or 이미 호출된 pid => return -1
+      }
+    return -1;
+  } 
 }
 
 /* Free the current process's resources. */
@@ -170,6 +186,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  sema_up(&(cur->child_lock));
+  sema_down(&(cur->memory_lock)); /* to keep memory of child thread until list_remove*/
 }
 
 /* Sets up the CPU for running user code in the current
@@ -369,7 +387,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Deny writes to executables. */
   file_deny_write(file);
 
- done:  
+ done:
   return success;
 }
 

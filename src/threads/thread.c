@@ -468,6 +468,11 @@ init_thread (struct thread *t, const char *name, int priority)
   for (i = 0; i < 128; i++)
     t->file_descriptor[i] = NULL;
   t->file_next_idx = 2;
+  t->parent = running_thread();
+  sema_init(&t->child_lock, 1);
+  sema_init(&t->memory_lock, 1);
+  list_init(&(t->childs));
+  list_push_back(&(running_thread()->childs),&(t->child_elem));
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

@@ -152,6 +152,7 @@ exit (int status)
   struct thread *t = thread_current();
   int i;
 
+  t->exit_status = status;
   printf("%s: exit(%d)\n", t->name, status);
   for (i = 2; i < 128; i++)
     close(i);
@@ -161,13 +162,22 @@ exit (int status)
 pid_t 
 exec (const char *file)
 {
-  return -1;
+  tid_t tid = process_execute(file);
+
+  if (tid == TID_ERROR)
+    return -1;
+  else
+  {
+    list_push_back (&(thread_current()->childs), &(thread_current()->child_elem));
+    return 0;
+  }
+  
 }
 
 int 
 wait (pid_t pid)
 {
-  return -1;   
+  return process_wait((tid_t)pid);
 }
 
 bool 
