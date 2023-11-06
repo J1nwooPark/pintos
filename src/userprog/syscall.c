@@ -169,6 +169,7 @@ exec (const char *file)
   tid_t child_tid = process_execute(file);
   struct list_elem *e;
 
+
   for (e = list_begin(&cur->childs); e != list_end(&cur->childs); e = list_next(e))
   {
     struct thread *temp = list_entry (e, struct thread, child_elem);

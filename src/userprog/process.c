@@ -39,6 +39,11 @@ process_execute (const char *file_name)
   fn_copy2 = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
+  if (fn_copy != NULL && fn_copy2 == NULL)
+  {
+    palloc_free_page(fn_copy);
+    return TID_ERROR;
+  }
   strlcpy (fn_copy, file_name, PGSIZE);
   strlcpy (fn_copy2, file_name, PGSIZE);
   name_ptr = strtok_r(fn_copy2, " ", &save_ptr);
@@ -60,9 +65,18 @@ start_process (void *file_name_)
   char *file_name = file_name_, *name_ptr, *save_ptr;
   struct intr_frame if_;
   bool success;
-  char **argv = (char**)malloc (sizeof(char*) * 128);
+  //char **argv = (char**)malloc (sizeof(char*) * 30);
+  char **argv = palloc_get_page(0);
   int i, argc = 0, total_len = 0;
   void **esp;
+
+  if (argv == NULL)
+  {
+    thread_current()->is_loaded = false;
+    sema_up(&thread_current()->exec_sema);
+    palloc_free_page (file_name);
+    exit (-1);
+  }
 
   /* Parse file name and save it in argv. */
   name_ptr = strtok_r(file_name, " ", &save_ptr);
@@ -120,13 +134,13 @@ start_process (void *file_name_)
 
   /* Push return address and free argv. */
   *esp -= 4;
-  free(argv);
-
+  //free(argv);
+  palloc_free_page(argv);
   /* If load failed, quit. */
   palloc_free_page (file_name);
 
   if (!success)
-    thread_exit();
+    exit(-1);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -168,6 +182,7 @@ process_wait (tid_t child_tid UNUSED)
       sema_down(&(temp->wait_sema));
       ret = temp->exit_status;
       list_remove(&(temp->child_elem));
+      sema_up(&temp->exit_sema);
       //palloc_free_page (temp);
       return ret;
     }
@@ -198,6 +213,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  sema_up(&thread_current()->wait_sema);
+  sema_down(&thread_current()->exit_sema);
 }
 
 /* Sets up the CPU for running user code in the current
