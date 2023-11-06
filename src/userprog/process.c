@@ -119,7 +119,7 @@ start_process (void *file_name_)
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
-    thread_exit ();
+    exit (-1);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -143,6 +143,9 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  //for(int i = 0; i < 100000000; i++);
+  //return -1;
+  
   struct list_elem *e;
   struct thread *cur = thread_current();
 
@@ -156,11 +159,9 @@ process_wait (tid_t child_tid UNUSED)
         sema_up(&(temp->memory_lock));
 
         return temp->exit_status;
-
-        //커널에 의해 종료 or 이미 호출된 pid => return -1
       }
     return -1;
-  } 
+  }
 }
 
 /* Free the current process's resources. */

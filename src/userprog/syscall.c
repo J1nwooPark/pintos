@@ -150,28 +150,36 @@ void
 exit (int status)
 {
   struct thread *t = thread_current();
+  struct list_elem *e;
   int i;
 
   t->exit_status = status;
   printf("%s: exit(%d)\n", t->name, status);
   for (i = 2; i < 128; i++)
     close(i);
+
+  for (e = list_begin(&t->childs); e != list_end(&t->childs); e = list_next(e))
+  {
+    struct thread *temp = list_entry (e, struct thread, elem);
+    process_wait(temp->tid);
+  }
   thread_exit();
 }
 
 pid_t 
 exec (const char *file)
 {
+  sema_down(&(thread_current()->exe_semaphore));
   tid_t tid = process_execute(file);
 
   if (tid == TID_ERROR)
     return -1;
   else
   {
+    sema_up(&(thread_current()->exe_semaphore));
     list_push_back (&(thread_current()->childs), &(thread_current()->child_elem));
     return 0;
   }
-  
 }
 
 int 
