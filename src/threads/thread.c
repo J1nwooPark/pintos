@@ -284,6 +284,7 @@ thread_exit (void)
 
 #ifdef USERPROG
   process_exit ();
+  sema_up(&thread_current()->wait_sema);
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
@@ -464,15 +465,21 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-
+  
   for (i = 0; i < 128; i++)
     t->file_descriptor[i] = NULL;
+  t->executing_file = NULL;
   t->file_next_idx = 2;
+    
+  
   t->parent = running_thread();
-  sema_init(&t->child_lock, 1);
-  sema_init(&t->memory_lock, 1);
+  sema_init(&t->exec_sema, 0);
+  sema_init(&t->wait_sema, 0);
   list_init(&(t->childs));
-  list_push_back(&(running_thread()->childs),&(t->child_elem));
+  list_push_back(&(t->parent->childs),&(t->child_elem));
+  t->is_loaded = -1;
+  t->exit_status = -100;
+  t->is_wait_called = false;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -548,7 +555,7 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      palloc_free_page (prev);
+      //palloc_free_page (prev);
     }
 }
 

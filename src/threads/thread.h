@@ -96,20 +96,22 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     
-   
-   /* File variables for file system. */
+    /* File variables for file system. */
     struct file* file_descriptor[128]; /* File descriptors. */
+    struct file* executing_file;
     int file_next_idx; /* Next index to insert for a file. */ 
     
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-   struct thread* parent;
-   struct list childs;
-   struct list_elem child_elem;
-   struct semaphore memory_lock;
-   struct semaphore child_lock;
-   int exit_status;
+    struct thread* parent;
+    struct list childs;
+    struct list_elem child_elem;
+    struct semaphore exec_sema;
+    struct semaphore wait_sema;
+    int exit_status;
+    int is_wait_called;
+    int is_loaded;
 #endif
 
     /* Owned by thread.c. */

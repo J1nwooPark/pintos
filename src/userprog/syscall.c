@@ -1,5 +1,6 @@
 #include "userprog/syscall.h"
 #include "userprog/pagedir.h"
+#include "userprog/process.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -10,6 +11,7 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "devices/shutdown.h"
+#include "devices/input.h"
 
 /* Lock used to execute file system functions. */
 static struct lock file_lock;
@@ -150,35 +152,34 @@ void
 exit (int status)
 {
   struct thread *t = thread_current();
-  struct list_elem *e;
   int i;
 
   t->exit_status = status;
   printf("%s: exit(%d)\n", t->name, status);
   for (i = 2; i < 128; i++)
     close(i);
-
-  for (e = list_begin(&t->childs); e != list_end(&t->childs); e = list_next(e))
-  {
-    struct thread *temp = list_entry (e, struct thread, elem);
-    process_wait(temp->tid);
-  }
+  file_close(t->executing_file);
   thread_exit();
 }
 
 pid_t 
 exec (const char *file)
 {
-  tid_t tid = process_execute(file);
-  sema_down(&(thread_current()->child_sema));
-  
-  if (tid == TID_ERROR)
-    return -1;
-  else
+  struct thread *cur = thread_current();
+  tid_t child_tid = process_execute(file);
+  struct list_elem *e;
+
+  for (e = list_begin(&cur->childs); e != list_end(&cur->childs); e = list_next(e))
   {
-    list_push_back (&(thread_current()->childs), &(thread_current()->child_elem));
-    return 0;
-  }
+    struct thread *temp = list_entry (e, struct thread, child_elem);
+    if (temp->tid == child_tid)
+    {
+      sema_down(&(temp->exec_sema));
+      if (temp->is_loaded)
+        return child_tid;
+    }
+  } 
+  return -1;
 }
 
 int 
@@ -227,7 +228,7 @@ read (int fd, void *buffer, unsigned length)
 {
   struct thread *t = thread_current();
   struct file *toread_file;
-  int i;
+  unsigned i;
 
   if (fd == 0)
   {

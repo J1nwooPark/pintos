@@ -1,4 +1,5 @@
 #include "userprog/process.h"
+#include "userprog/syscall.h"
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
@@ -73,7 +74,13 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (name_ptr, &if_.eip, &if_.esp);
-  
+
+  if (success)
+    thread_current()->is_loaded = true;
+  else
+    thread_current()->is_loaded = false;
+  sema_up(&thread_current()->exec_sema);
+
   /* Parse arguments and save them in argv. */
   while ((name_ptr = strtok_r(NULL, " ", &save_ptr)))
     argv[argc++] = name_ptr;
@@ -118,11 +125,9 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
-    thread_exit();
 
-  
-  sema_up(&(thread_current()->child_sema));
+  if (!success)
+    thread_exit();
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -146,28 +151,29 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  //for(int i = 0; i < 100000000; i++);
-  //return -1;
-  
   struct list_elem *e;
   struct thread *cur = thread_current();
 
   for (e = list_begin(&cur->childs); e != list_end(&cur->childs); e = list_next(e))
   {
-    printf("why...");
-      struct thread *temp = list_entry (e, struct thread, elem);
-      if (temp->tid == child_tid)
-      {
-         printf("found");
-        sema_down(&temp->child_sema);
-        int exit_status = temp->exit_status;
-        list_remove(&temp->child_elem);
-        sema_up(&temp->memory_sema);
+    struct thread *temp = list_entry (e, struct thread, child_elem);
+    int ret;
 
-        return exit_status;
-      }
-    return -1;
-  }
+    if (temp->tid == child_tid)
+    {
+      if (temp->is_wait_called)
+        return -1;
+      if (temp->exit_status != -100)
+        return temp->exit_status;
+      temp->is_wait_called = true;
+      sema_down(&(temp->wait_sema));
+      ret = temp->exit_status;
+      list_remove(&(temp->child_elem));
+      //palloc_free_page (temp);
+      return ret;
+    }
+  } 
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -193,8 +199,6 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  sema_up(&(cur->child_sema));
-  sema_down(&(cur->memory_sema)); /* to keep memory of child thread until list_remove*/
 }
 
 /* Sets up the CPU for running user code in the current
@@ -390,6 +394,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
+  thread_current()->executing_file = file;
 
   /* Deny writes to executables. */
   file_deny_write(file);
