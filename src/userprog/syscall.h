@@ -6,6 +6,7 @@
 
 typedef int pid_t;
 
+void check_address(void *);
 void syscall_init (void);
 
 void halt (void) NO_RETURN;
