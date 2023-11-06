@@ -169,14 +169,13 @@ exit (int status)
 pid_t 
 exec (const char *file)
 {
-  sema_down(&(thread_current()->exe_semaphore));
   tid_t tid = process_execute(file);
-
+  sema_down(&(thread_current()->child_sema));
+  
   if (tid == TID_ERROR)
     return -1;
   else
   {
-    sema_up(&(thread_current()->exe_semaphore));
     list_push_back (&(thread_current()->childs), &(thread_current()->child_elem));
     return 0;
   }
@@ -185,7 +184,7 @@ exec (const char *file)
 int 
 wait (pid_t pid)
 {
-  return process_wait((tid_t)pid);
+  return process_wait(pid);
 }
 
 bool 
