@@ -48,7 +48,7 @@ process_execute (const char *file_name)
   palloc_free_page (fn_copy2);
 
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (fn_copy);
   return tid;
 }
 
@@ -74,7 +74,6 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (name_ptr, &if_.eip, &if_.esp);
-
   if (success)
     thread_current()->is_loaded = true;
   else
@@ -163,9 +162,9 @@ process_wait (tid_t child_tid UNUSED)
     {
       if (temp->is_wait_called)
         return -1;
+      temp->is_wait_called = true;
       if (temp->exit_status != -100)
         return temp->exit_status;
-      temp->is_wait_called = true;
       sema_down(&(temp->wait_sema));
       ret = temp->exit_status;
       list_remove(&(temp->child_elem));
