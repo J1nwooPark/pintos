@@ -156,9 +156,11 @@ exit (int status)
 
   t->exit_status = status;
   printf("%s: exit(%d)\n", t->name, status);
-  for (i = 2; i < 128; i++)
+  /*
+  for (i = 0; i < 128; i++)
     close(i);
   file_close(t->executing_file);
+  */
   thread_exit();
 }
 
