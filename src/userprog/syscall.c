@@ -3,6 +3,7 @@
 #include "userprog/process.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
@@ -12,17 +13,48 @@
 #include "filesys/inode.h"
 #include "devices/shutdown.h"
 #include "devices/input.h"
+#include "vm/page.h"
 
 /* Lock used to execute file system functions. */
 static struct lock file_lock;
 
 static void syscall_handler (struct intr_frame *);
 
-void
-check_address(void *esp)
+struct vm_entry *
+check_address(void *addr)
 {
-  if (esp < (void *)0x08048000 || PHYS_BASE <= esp)
+  struct vm_entry *vme;
+  if (addr < (void *)0x08048000 || PHYS_BASE <= addr)
     exit(-1);
+  vme = find_vme(addr);
+  if (vme == NULL)  
+    exit(-1);
+  return vme;
+}
+
+void
+check_valid_buffer (void *buffer, unsigned size, bool to_write)
+{
+  unsigned i;
+    
+  for (i = 0; i < size; i++)
+  {
+    struct vm_entry *vme = check_address(buffer + i);
+    if (to_write && vme->writable == false)
+      exit(-1);
+  }
+}
+
+void
+check_valid_string (void *str)
+{
+  while (1)
+  {
+    check_address(str);
+    if (*(char *)str == '\0')
+      break;
+    str++;
+  }  
 }
 void
 syscall_init (void) 
@@ -48,7 +80,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       exit(*(int *)(esp + 4));
       break;
     case SYS_EXEC:
-      check_address(*(char **)(esp + 4));
+      check_valid_string(*(char **)(esp + 4));
       ret = exec(*(char **)(esp + 4));
       f->eax = ret;
       break;
@@ -59,7 +91,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
     case SYS_CREATE:
       check_address(esp + 8);
-      check_address(*(char **)(esp + 4));
+      check_valid_string(*(char **)(esp + 4));
       
       lock_acquire (&file_lock);
       ret = create(*(char **)(esp + 4), *(unsigned *)(esp + 8));
@@ -68,8 +100,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = ret;
       break;
     case SYS_REMOVE:
-      check_address(esp + 4);
-      check_address(*(char **)(esp + 4));
+      check_valid_string(*(char **)(esp + 4));
 
       lock_acquire (&file_lock);
       ret = remove(*(char **)(esp + 4));
@@ -78,8 +109,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = ret;
       break;
     case SYS_OPEN:
-      check_address(esp + 4);
-      check_address(*(char **)(esp + 4));
+      check_valid_string(*(char **)(esp + 4));
       
       lock_acquire (&file_lock);
       ret = open(*(char **)(esp + 4));
@@ -98,7 +128,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
     case SYS_READ:
       check_address(esp + 12);
-      check_address(*(void **)(esp + 8));
+      check_valid_buffer(*(void **)(esp + 8), *(unsigned *)(esp + 12), true);
 
       lock_acquire (&file_lock);
       ret = read(*(int *)(esp + 4), *(void **)(esp + 8), *(unsigned *)(esp + 12));
@@ -108,7 +138,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
     case SYS_WRITE:
       check_address(esp + 12);
-      check_address(*(void **)(esp + 8));
+      check_valid_buffer(*(void **)(esp + 8), *(unsigned *)(esp + 12), false);
 
       lock_acquire (&file_lock);
       ret = write(*(int *)(esp + 4), *(void **)(esp + 8), *(unsigned *)(esp + 12));
@@ -152,13 +182,9 @@ void
 exit (int status)
 {
   struct thread *t = thread_current();
-  int i;
 
   t->exit_status = status;
   printf("%s: exit(%d)\n", t->name, status);
-  for (i = 2; i < 128; i++)
-    close(i);
-  file_close(t->executing_file);
   thread_exit();
 }
 

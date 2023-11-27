@@ -3,10 +3,13 @@
 
 #include <stdbool.h>
 #include <debug.h>
+#include "vm/page.h"
 
 typedef int pid_t;
 
-void check_address(void *);
+struct vm_entry *check_address(void *);
+void check_valid_buffer (void *, unsigned, bool);
+void check_valid_string(void *str);
 void syscall_init (void);
 
 void halt (void) NO_RETURN;
