@@ -3,6 +3,7 @@
 
 #include <debug.h>
 #include <list.h>
+#include <hash.h>
 #include <stdint.h>
 #include "threads/synch.h"
 #include "filesys/file.h"
@@ -117,6 +118,8 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+    
+    struct hash vm;
   };
 
 /* If false (default), use round-robin scheduler.
