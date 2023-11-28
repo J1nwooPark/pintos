@@ -312,6 +312,7 @@ tell (int fd)
 void 
 close (int fd)
 {
+  if (fd > 255) return;
   struct thread *t = thread_current();
   file_close(t->file_descriptor[fd]);
   t->file_descriptor[fd] = NULL;
