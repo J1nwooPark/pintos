@@ -29,4 +29,6 @@ unsigned vm_hash_func (const struct hash_elem *, void *);
 bool vm_less_func (const struct hash_elem *, const struct hash_elem *, void *);
 void vm_destroy_func (struct hash_elem *, void *);
 
+bool load_file (void *, struct vm_entry *);
+
 #endif /* vm/page.h */

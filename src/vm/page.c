@@ -1,6 +1,10 @@
 #include "vm/page.h"
 #include "threads/vaddr.h"
 #include "threads/thread.h"
+#include "threads/malloc.h"
+#include "threads/palloc.h"
+#include "filesys/file.h"
+#include <string.h>
 
 void vm_init (struct hash *vm)
 {
@@ -28,13 +32,12 @@ bool delete_vme (struct hash *vm, struct vm_entry *vme)
 
 struct vm_entry *find_vme (void *vaddr)
 {
-  struct vm_entry *vme;
+  struct vm_entry vme;
   struct hash_elem *e;
   struct thread *t = thread_current();
 
-  vaddr = pg_round_down(vaddr);
-  vme->vaddr = vaddr;
-  e = hash_find(&t->vm, &vme->elem);
+  vme.vaddr = pg_round_down(vaddr);
+  e = hash_find(&t->vm, &vme.elem);
   if (e == NULL) return NULL;
   return hash_entry(e, struct vm_entry, elem);
 }
@@ -42,7 +45,7 @@ struct vm_entry *find_vme (void *vaddr)
 unsigned vm_hash_func (const struct hash_elem *e, void *aux)
 {
   struct vm_entry *vme = hash_entry(e, struct vm_entry, elem);
-  return hash_int(vme->vaddr);
+  return hash_int((int)vme->vaddr);
 }
 
 bool vm_less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux)   
@@ -56,5 +59,17 @@ bool vm_less_func (const struct hash_elem *a, const struct hash_elem *b, void *a
 
 void vm_destroy_func (struct hash_elem *e, void *aux)
 {
-  
+  struct vm_entry *vme = hash_entry(e, struct vm_entry, elem);
+  free(vme);
+}
+
+bool load_file (void *kpage, struct vm_entry *vme)
+{
+  if (file_read_at (vme->file, kpage, vme->page_read_bytes, vme->ofs) != (int) vme->page_read_bytes)
+  {
+    palloc_free_page (kpage);
+    return false; 
+  }
+  memset (kpage + vme->page_read_bytes, 0, vme->page_zero_bytes);
+  return true;
 }
