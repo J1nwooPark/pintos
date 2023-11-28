@@ -185,7 +185,6 @@ process_wait (tid_t child_tid UNUSED)
       ret = temp->exit_status;
       list_remove(&(temp->child_elem));
       sema_up(&temp->exit_sema);
-      //palloc_free_page (temp);
       return ret;
     }
   } 
@@ -585,4 +584,21 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+bool
+vm_fault_handler (struct vm_entry *vme)
+{
+  void *kpage = palloc_get_page (PAL_USER);
+  bool is_loaded, is_installed;
+
+  if (kpage == NULL)
+    return false;
+  is_loaded = load_file(kpage, vme);
+  if (is_loaded == false)
+    return false;
+  is_installed = install_page(vme->vaddr, kpage, vme->writable);
+  if (is_installed == false)
+    return false;
+  return true;
 }
