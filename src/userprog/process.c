@@ -198,11 +198,30 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
   int i;
+  struct list_elem *e, *e2;
 
   for (i = 0; i < 128; i++)
     close(i);
   file_close(cur->executing_file);
   
+  for (e = list_begin(&cur->mmap_list); e != list_end(&cur->mmap_list);)
+  {
+    struct mmap_file *mfile = list_entry(e, struct mmap_file, elem);
+    for (e2 = list_begin(&mfile->vme_list); e2 != list_end(&mfile->vme_list);)
+    {
+      struct vm_entry *vme = list_entry(e2, struct vm_entry, mmap_elem);
+      void *vaddr = vme->vaddr;
+      bool isDirty = pagedir_is_dirty(cur->pagedir, vaddr);
+      
+      if (isDirty)
+        file_write_at(mfile->mapped_file, vaddr, vme->page_read_bytes, vme->ofs);
+      e2 = list_remove(e2);
+      delete_vme(&cur->vm, vme);
+      free(vme);
+    }
+    e = list_remove(e);
+    free(mfile);
+  }
   vm_destroy(&cur->vm);
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
