@@ -120,6 +120,8 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
     
     struct hash vm;
+    struct list mmap_list;
+    int mmap_next_idx;
   };
 
 /* If false (default), use round-robin scheduler.
