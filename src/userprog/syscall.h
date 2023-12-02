@@ -6,6 +6,7 @@
 #include "vm/page.h"
 
 typedef int pid_t;
+typedef int mapid_t;
 
 struct vm_entry *check_address(void *);
 void check_valid_buffer (void *, unsigned, bool);
@@ -25,5 +26,8 @@ int write (int fd, const void *buffer, unsigned length);
 void seek (int fd, unsigned position);
 unsigned tell (int fd);
 void close (int fd);
+
+mapid_t mmap (int fd, void *addr);
+void munmap (mapid_t mapid);
 
 #endif /* userprog/syscall.h */
