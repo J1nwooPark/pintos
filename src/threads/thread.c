@@ -470,13 +470,14 @@ init_thread (struct thread *t, const char *name, int priority)
     t->file_descriptor[i] = NULL;
   t->executing_file = NULL;
   t->file_next_idx = 2;
-    
+  t->mmap_next_idx = 0;
   
   t->parent = running_thread();
   sema_init(&t->exec_sema, 0);
   sema_init(&t->wait_sema, 0);
   sema_init(&t->exit_sema, 0);
   list_init(&(t->childs));
+  list_init(&(t->mmap_list));  
   list_push_back(&(t->parent->childs),&(t->child_elem));
   t->is_loaded = -1;
   t->exit_status = -100;
