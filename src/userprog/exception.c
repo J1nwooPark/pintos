@@ -163,14 +163,5 @@ page_fault (struct intr_frame *f)
   is_loaded = vm_fault_handler(vme);
   if (!is_loaded)
     exit(-1);
-
-  /*
-  printf ("Page fault at %p: %s error %s page in %s context.\n",
-          fault_addr,
-          not_present ? "not present" : "rights violation",
-          write ? "writing" : "reading",
-          user ? "user" : "kernel");
-  kill (f);
-  */
 }
 
