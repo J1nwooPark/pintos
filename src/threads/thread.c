@@ -146,8 +146,7 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
-  struct list_elem *e;
-    
+
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;

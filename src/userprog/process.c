@@ -463,3 +463,50 @@ install_page (void *upage, void *kpage, bool writable)
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
+<<<<<<< Updated upstream
+=======
+
+bool
+vm_fault_handler (struct vm_entry *vme) 
+{
+  void *kpage = palloc_get_page (PAL_USER);
+  bool is_loaded, is_installed;
+
+  if (kpage == NULL)
+    return false;
+  is_loaded = load_file(kpage, vme);
+  if (is_loaded == false)
+    return false;
+  is_installed = install_page(vme->vaddr, kpage, vme->writable);
+  if (is_installed == false)
+    return false;
+  return true;
+}
+
+
+bool vm_stack_growth (void * addr) 
+{
+	bool success = false;
+	struct vm_entry * vme = malloc(sizeof(struct vm_entry));
+
+	if (vme == NULL) {
+		return false;
+	}
+	
+    vme->vaddr = pg_round_down(addr);
+    vme->writable = true;
+    insert_vme(&thread_current()->vm, vme);
+      
+	uint8_t * kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+	if (kpage != NULL) 
+	{
+		success = install_page (vme->vaddr, kpage, vme->writable);
+        if (success == false) 
+		{
+			palloc_free_page (kpage);
+		}
+		free(vme);
+	}
+	return success;
+}
+>>>>>>> Stashed changes
