@@ -8,6 +8,9 @@
 typedef int pid_t;
 typedef int mapid_t;
 
+/* Lock used to execute file system functions. */
+extern struct lock file_lock;
+
 struct vm_entry *check_address(void *);
 void check_valid_buffer (void *, unsigned, bool);
 void check_valid_string(void *str);
