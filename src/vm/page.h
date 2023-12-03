@@ -6,6 +6,7 @@
 
 struct vm_entry {
   void *vaddr;
+  uint8_t type;
 
   struct file* file;
 

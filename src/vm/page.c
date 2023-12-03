@@ -1,10 +1,16 @@
 #include "vm/page.h"
+#include "vm/frame.h"
+#include "vm/swap.h"
+#include "userprog/syscall.h"
 #include "threads/vaddr.h"
 #include "threads/thread.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
+#include "userprog/pagedir.h"
 #include "filesys/file.h"
 #include <string.h>
+
+extern struct lock file_lock;
 
 void vm_init (struct hash *vm)
 {
@@ -60,16 +66,21 @@ bool vm_less_func (const struct hash_elem *a, const struct hash_elem *b, void *a
 void vm_destroy_func (struct hash_elem *e, void *aux)
 {
   struct vm_entry *vme = hash_entry(e, struct vm_entry, elem);
+  free_frame(pagedir_get_page(thread_current()->pagedir, vme->vaddr));
   free(vme);
 }
 
 bool load_file (void *kpage, struct vm_entry *vme)
 {
+  bool is_holding_lock = lock_held_by_current_thread(&file_lock);
+
+  if (!is_holding_lock) lock_acquire (&file_lock);
   if (file_read_at (vme->file, kpage, vme->page_read_bytes, vme->ofs) != (int) vme->page_read_bytes)
   {
-    palloc_free_page (kpage);
+    lock_release (&file_lock);
     return false; 
   }
   memset (kpage + vme->page_read_bytes, 0, vme->page_zero_bytes);
+  if (!is_holding_lock) lock_release (&file_lock);
   return true;
 }
