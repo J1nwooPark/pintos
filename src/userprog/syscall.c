@@ -72,6 +72,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 {
   void *esp = f->esp;
   check_address(esp);
+  thread_current()->user_stack_pointer = esp;
+
   int syscall_num = *(int *)esp;
   uint32_t ret;
 
@@ -275,7 +277,16 @@ read (int fd, void *buffer, unsigned length)
   struct thread *t = thread_current();
   struct file *toread_file;
   unsigned i;
+  int ret;
+  void *ptr;
 
+  for (ptr = buffer; ptr < buffer + length; ptr += PGSIZE)
+  {
+    struct vm_entry *vme = find_vme(ptr);
+    vme->is_pinned = true;
+    if (!vme->is_loaded)
+      vm_fault_handler(vme);
+  }
   if (fd == 0)
   {
     for (i = 0; i < length; i++) 
@@ -285,7 +296,13 @@ read (int fd, void *buffer, unsigned length)
   toread_file = t->file_descriptor[fd];
   if (toread_file == NULL)
     return -1;
-  return file_read(toread_file, buffer, length);
+  ret = file_read(toread_file, buffer, length);
+  for (ptr = buffer; ptr < buffer + length; ptr += PGSIZE)
+  {
+    struct vm_entry *vme = find_vme(ptr);
+    vme->is_pinned = false;
+  }
+  return ret;
 }
 
 int 
@@ -293,7 +310,16 @@ write (int fd, const void *buffer, unsigned length)
 {
   struct thread *t = thread_current();
   struct file *towrite_file;
+  void *ptr;
+  int ret;
 
+  for (ptr = buffer; ptr < buffer + length; ptr += PGSIZE)
+  {
+    struct vm_entry *vme = find_vme(ptr);
+    vme->is_pinned = true;
+    if (!vme->is_loaded)
+      vm_fault_handler(vme);
+  }
   if (fd == 1)
   {
     putbuf(buffer, length);
@@ -302,7 +328,13 @@ write (int fd, const void *buffer, unsigned length)
   towrite_file = t->file_descriptor[fd];
   if (towrite_file == NULL)
     return -1;
-  return file_write(towrite_file, buffer, length);
+  ret = file_write(towrite_file, buffer, length);
+  for (ptr = buffer; ptr < buffer + length; ptr += PGSIZE)
+  {
+    struct vm_entry *vme = find_vme(ptr);
+    vme->is_pinned = false;
+  }
+  return ret;
 }
 
 void 
@@ -381,6 +413,8 @@ mmap (int fd, void *addr)
     vme->page_zero_bytes = PGSIZE - vme->page_read_bytes;
     vme->ofs = i * PGSIZE;
     vme->writable = true;
+    vme->is_pinned = false;
+    vme->is_loaded = false;
     insert_vme(&t->vm, vme);
     list_push_back(&mfile->vme_list, &vme->mmap_elem);
     len -= PGSIZE;

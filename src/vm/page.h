@@ -16,6 +16,9 @@ struct vm_entry {
   
   bool writable;
   size_t swap_idx;
+  bool is_pinned;
+  bool is_loaded;
+
   struct hash_elem elem;
   struct list_elem mmap_elem;
 };

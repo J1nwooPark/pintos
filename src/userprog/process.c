@@ -358,13 +358,15 @@ load (const char *file_name, void (**eip) (void), void **esp)
   lock_acquire (&file_lock);
   /* Open executable file. */
   file = filesys_open (file_name);
-  lock_release (&file_lock);
-
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
+      lock_release (&file_lock);
       goto done; 
     }
+  /* Deny writes to executables. */
+  file_deny_write(file);
+  lock_release (&file_lock);
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -447,9 +449,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
   success = true;
   thread_current()->executing_file = file;
-
-  /* Deny writes to executables. */
-  file_deny_write(file);
 
  done:
   return success;
@@ -561,6 +560,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       vme->page_zero_bytes = page_zero_bytes;
       vme->ofs = ofs;
       vme->writable = writable;
+      vme->is_pinned = false;
+      vme->is_loaded = false;
       insert_vme(&thread_current()->vm, vme);
       
       /* Advance. */
@@ -600,6 +601,8 @@ setup_stack (void **esp)
   vme->vaddr = ((uint8_t *) PHYS_BASE) - PGSIZE;
   vme->type = 2;
   vme->writable = true;
+  vme->is_pinned = false;
+  vme->is_loaded = true;
   insert_vme(&thread_current()->vm, vme);
   return success;
 }
@@ -652,5 +655,32 @@ vm_fault_handler (struct vm_entry *vme)
     return false;
   }
   kframe->vme = vme;
+  vme->is_loaded = true;
+  return true;
+}
+
+bool expand_stack (void *rsp)
+{
+  while (!find_vme(rsp))
+  {
+    struct frame *sframe = alloc_frame (PAL_USER | PAL_ZERO);
+    bool success = install_page (pg_round_down(rsp), sframe->addr, true);
+
+    if (!success) {
+      free_frame (sframe->addr);
+      return false;
+    }
+
+    struct vm_entry *vme = malloc (sizeof *vme);
+    sframe->vme = vme;
+    vme->vaddr = pg_round_down(rsp);
+    vme->type = 2;
+    vme->writable = true;
+    vme->is_pinned = false;
+    vme->is_loaded = true;
+    insert_vme(&thread_current()->vm, vme);
+      
+    rsp += PGSIZE;
+  }
   return true;
 }

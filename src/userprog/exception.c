@@ -1,5 +1,6 @@
 #include "userprog/exception.h"
 #include "userprog/process.h"
+#include "threads/vaddr.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include "userprog/gdt.h"
@@ -151,15 +152,30 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  if (not_present == false)
+  if (is_kernel_vaddr(fault_addr) || not_present == false)
     exit(-1);
     
   struct vm_entry *vme;
-  bool is_loaded;
+  bool is_loaded, is_expanded;
     
   vme = find_vme(fault_addr);
   if (vme == NULL)
-    exit(-1);
+  {
+    void *rsp = f->esp;
+    const int MAX_STACK = (1<<23);
+
+    if (!user) rsp = thread_current()->user_stack_pointer;
+
+    if ((PHYS_BASE - pg_round_down (fault_addr)) <= MAX_STACK && (uint32_t*)fault_addr >= (rsp - 32))
+    {
+      is_expanded = expand_stack(fault_addr);
+      if (!is_expanded)
+        exit(-1);
+    }
+    else
+      exit(-1);
+    return;
+  }
   is_loaded = vm_fault_handler(vme);
   if (!is_loaded)
     exit(-1);

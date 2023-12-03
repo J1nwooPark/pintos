@@ -88,6 +88,7 @@ void free_frame (void *addr)
       vme->swap_idx = swap_out (target->addr);
       break;
   }
+  vme->is_loaded = false;
   palloc_free_page (target->addr);
   pagedir_clear_page (target->t->pagedir, vme->vaddr);
   del_frame (target);
@@ -112,7 +113,7 @@ void *try_free_frame (enum palloc_flags flags)
     if (lru_clock == NULL)
       lru_clock = list_begin(&lru_list);
     f = list_entry (lru_clock, struct frame, elem);
-    if (pagedir_is_accessed (f->t->pagedir, f->vme->vaddr) == false)
+    if (!f->vme->is_pinned && pagedir_is_accessed (f->t->pagedir, f->vme->vaddr) == false)
       break;
     pagedir_set_accessed (f->t->pagedir, f->vme->vaddr, false);
     lru_clock = get_next_clock_frame();
