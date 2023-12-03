@@ -148,9 +148,32 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  /* To implement virtual memory, delete the rest of the function
-     body, and replace it with code that brings in the page to
-     which fault_addr refers. */
+  if (not_present == false)
+    exit(-1);
+    
+  struct vm_entry *vme;
+  bool is_loaded;
+    
+  vme = find_vme(fault_addr);
+  if (vme == NULL)
+  {
+   void *rsp = f->esp;
+   const int MAX_STACK = (1<<23);
+   if(user == false)
+      rsp = thread_current()->user_stack_pointer;
+
+   if ((PHYS_BASE - pg_round_down (fault_addr)) <= MAX_STACK && (uint32_t*)fault_addr >= (rsp - 32))
+      is_loaded = vm_stack_growth(fault_addr);
+  }
+  else
+  {
+   is_loaded = vm_fault_handler(vme);
+  }
+   
+  if (!is_loaded)
+    exit(-1);
+
+  /*
   printf ("Page fault at %p: %s error %s page in %s context.\n",
           fault_addr,
           not_present ? "not present" : "rights violation",
