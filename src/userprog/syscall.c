@@ -15,8 +15,164 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf ("system call!\n");
-  thread_exit ();
+  void *esp = f->esp;
+  check_address(esp);
+  int syscall_num = *(int *)esp;
+  uint32_t ret;
+
+  thread_current()->user_stack_pointer = f->esp;
+
+  switch (syscall_num) {
+    case SYS_HALT:
+      halt();
+      break;
+    case SYS_EXIT:
+      check_address(esp + 4);
+      exit(*(int *)(esp + 4));
+      break;
+    case SYS_EXEC:
+      check_valid_string(*(char **)(esp + 4));
+      ret = exec(*(char **)(esp + 4));
+      f->eax = ret;
+      break;
+    case SYS_WAIT:
+      check_address(esp + 4);
+      ret = wait(*(int *)(esp + 4));
+      f->eax = ret;
+      break;
+    case SYS_CREATE:
+      check_address(esp + 8);
+      check_valid_string(*(char **)(esp + 4));
+      
+      lock_acquire (&file_lock);
+      ret = create(*(char **)(esp + 4), *(unsigned *)(esp + 8));
+      lock_release (&file_lock);
+      
+      f->eax = ret;
+      break;
+    case SYS_REMOVE:
+      check_valid_string(*(char **)(esp + 4));
+
+      lock_acquire (&file_lock);
+      ret = remove(*(char **)(esp + 4));
+      lock_release (&file_lock);
+
+      f->eax = ret;
+      break;
+    case SYS_OPEN:
+      check_valid_string(*(char **)(esp + 4));
+      
+      lock_acquire (&file_lock);
+      ret = open(*(char **)(esp + 4));
+      lock_release (&file_lock);
+
+      f->eax = ret;
+      break;
+    case SYS_FILESIZE:
+      check_address(esp + 4);
+
+      lock_acquire (&file_lock);
+      ret = filesize(*(int *)(esp + 4));
+      lock_release (&file_lock);
+
+      f->eax = ret;
+      break;
+    case SYS_READ:
+      check_address(esp + 12);
+      check_valid_buffer(*(void **)(esp + 8), *(unsigned *)(esp + 12), true);
+
+      lock_acquire (&file_lock);
+      ret = read(*(int *)(esp + 4), *(void **)(esp + 8), *(unsigned *)(esp + 12));
+      lock_release (&file_lock);
+
+      f->eax = ret;
+      break;
+    case SYS_WRITE:
+      check_address(esp + 12);
+      check_valid_buffer(*(void **)(esp + 8), *(unsigned *)(esp + 12), false);
+
+      lock_acquire (&file_lock);
+      ret = write(*(int *)(esp + 4), *(void **)(esp + 8), *(unsigned *)(esp + 12));
+      lock_release (&file_lock);
+
+      f->eax = ret;
+      break;
+    case SYS_SEEK:
+      check_address(esp + 8);
+
+      lock_acquire (&file_lock);
+      seek(*(int *)(esp + 4), *(unsigned *)(esp + 8));
+      lock_release (&file_lock);
+      break;
+    case SYS_TELL:
+      check_address(esp + 4);
+
+      lock_acquire (&file_lock);
+      ret = tell(*(int *)(esp + 4));
+      lock_release (&file_lock);
+
+      f->eax = ret;
+      break;
+    case SYS_CLOSE:
+      check_address(esp + 4);
+
+      lock_acquire (&file_lock);
+      close(*(int *)(esp + 4));
+      lock_release (&file_lock);
+      break;
+    case SYS_MMAP:
+      check_address(esp + 8);
+    
+      lock_acquire (&file_lock);
+      ret = mmap(*(int *)(esp + 4), *(void **)(esp + 8));
+      lock_release (&file_lock);
+          
+      f->eax = ret;
+      break;
+    case SYS_MUNMAP:
+      check_address(esp + 4);
+          
+      lock_acquire (&file_lock);
+      munmap(*(int *)(esp + 4));
+      lock_release (&file_lock);
+      break;
+  }
+}
+
+void 
+halt (void)
+{
+  shutdown_power_off();
+}
+
+void 
+exit (int status)
+{
+  struct thread *t = thread_current();
+
+  t->exit_status = status;
+  printf("%s: exit(%d)\n", t->name, status);
+  thread_exit();
+}
+
+pid_t 
+exec (const char *file)
+{
+  struct thread *cur = thread_current();
+  tid_t child_tid = process_execute(file);
+  struct list_elem *e;
+
+  for (e = list_begin(&cur->childs); e != list_end(&cur->childs); e = list_next(e))
+  {
+    struct thread *temp = list_entry (e, struct thread, child_elem);
+    if (temp->tid == child_tid)
+    {
+      sema_down(&(temp->exec_sema));
+      if (temp->is_loaded)
+        return child_tid;
+    }
+  } 
+  return -1;
 }
 
 int 

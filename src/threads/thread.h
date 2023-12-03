@@ -106,6 +106,12 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+    
+    struct hash vm;
+    struct list mmap_list;
+    int mmap_next_idx;
+   
+   void *user_stack_pointer;
   };
 
 /* If false (default), use round-robin scheduler.
