@@ -15,9 +15,11 @@
 #include "devices/shutdown.h"
 #include "devices/input.h"
 #include "vm/page.h"
+#include "vm/frame.h"
+#include "vm/swap.h"
 
 /* Lock used to execute file system functions. */
-static struct lock file_lock;
+struct lock file_lock;
 
 static void syscall_handler (struct intr_frame *);
 
@@ -371,8 +373,9 @@ mmap (int fd, void *addr)
 
   for (i = 0; i < page_cnt; i++)
   {
-    struct vm_entry *vme = malloc (sizeof *vme); 
+    struct vm_entry *vme = malloc (sizeof *vme);
     vme->vaddr = page_start + i * PGSIZE;
+    vme->type = 1;
     vme->file = new_file;
     vme->page_read_bytes = (len >= PGSIZE) ? PGSIZE : len;
     vme->page_zero_bytes = PGSIZE - vme->page_read_bytes;
@@ -390,7 +393,7 @@ munmap (mapid_t mapid)
 {
   struct thread *t = thread_current();
   struct list_elem *e, *e2;
-    
+
   for (e = list_begin(&t->mmap_list); e != list_end(&t->mmap_list);
        e = list_next (e))
   {
@@ -402,14 +405,16 @@ munmap (mapid_t mapid)
         struct vm_entry *vme = list_entry(e2, struct vm_entry, mmap_elem);
         void *vaddr = vme->vaddr;
         bool isDirty = pagedir_is_dirty(t->pagedir, vaddr);
-        
+
         if (isDirty)
           file_write_at(mfile->mapped_file, vaddr, vme->page_read_bytes, vme->ofs);
         e2 = list_remove(e2);
+        free_frame (pagedir_get_page (t->pagedir, vaddr));
         delete_vme(&t->vm, vme);
         free(vme);
       }
-      e = list_remove(e);
+      list_remove(e);
+      file_close (mfile->mapped_file);
       free(mfile);
       return;
     }
