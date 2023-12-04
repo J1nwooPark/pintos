@@ -72,6 +72,9 @@ syscall_handler (struct intr_frame *f UNUSED)
 {
   void *esp = f->esp;
   check_address(esp);
+  check_address(esp + 1);
+  check_address(esp + 2);
+  check_address(esp + 3);
   thread_current()->user_stack_pointer = esp;
 
   int syscall_num = *(int *)esp;
@@ -86,7 +89,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       exit(*(int *)(esp + 4));
       break;
     case SYS_EXEC:
-      check_valid_string(*(char **)(esp + 4));
+      check_valid_string(esp + 4);
       ret = exec(*(char **)(esp + 4));
       f->eax = ret;
       break;
@@ -142,7 +145,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
       f->eax = ret;
       break;
-    case SYS_WRITE:
+      case SYS_WRITE:
       check_address(esp + 12);
       check_valid_buffer(*(void **)(esp + 8), *(unsigned *)(esp + 12), false);
 
@@ -152,7 +155,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
       f->eax = ret;
       break;
-    case SYS_SEEK:
+      case SYS_SEEK:
       check_address(esp + 8);
 
       lock_acquire (&file_lock);
@@ -279,7 +282,9 @@ read (int fd, void *buffer, unsigned length)
   unsigned i;
   int ret;
   void *ptr;
-
+  
+  if (fd < 0 || fd > 128)
+    return -1;
   for (ptr = buffer; ptr < buffer + length; ptr += PGSIZE)
   {
     struct vm_entry *vme = find_vme(ptr);
@@ -312,7 +317,9 @@ write (int fd, const void *buffer, unsigned length)
   struct file *towrite_file;
   void *ptr;
   int ret;
-
+   
+  if (fd < 0 || fd > 128)
+    return -1;
   for (ptr = buffer; ptr < buffer + length; ptr += PGSIZE)
   {
     struct vm_entry *vme = find_vme(ptr);

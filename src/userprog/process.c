@@ -204,6 +204,8 @@ process_exit (void)
   int i;
   struct list_elem *e, *e2;
 
+  bool is_holding_lock = lock_held_by_current_thread (&file_lock);
+  if (!is_holding_lock) lock_acquire(&file_lock);
   for (i = 0; i < 128; i++)
     close(i);
   file_close(cur->executing_file);
@@ -228,7 +230,7 @@ process_exit (void)
     file_close (mfile->mapped_file);
     free(mfile);
   }
-
+  if (!is_holding_lock) lock_release(&file_lock);
   vm_destroy(&cur->vm);
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -355,7 +357,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-  lock_acquire (&file_lock);
+  bool is_holding_lock = lock_held_by_current_thread (&file_lock);
+  if (!is_holding_lock) lock_acquire (&file_lock);
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
@@ -366,7 +369,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
   /* Deny writes to executables. */
   file_deny_write(file);
-  lock_release (&file_lock);
+  if (!is_holding_lock) lock_release (&file_lock);
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
